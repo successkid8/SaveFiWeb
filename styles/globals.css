@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+html, body {
+  @apply m-0 p-0 w-full h-full overflow-x-hidden;
+}
+
+body {
+  @apply bg-gray-900 text-white;
+}
+
+/* Wallet adapter button styles */
+.wallet-adapter-button {
+  @apply bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-purple-500/20 transition-all duration-300 !important;
+}
+
+.wallet-adapter-button:not([disabled]):hover {
+  @apply from-purple-700 to-purple-800 !important;
+}
+
+/* Glassmorphism effects */
+.glass {
+  @apply bg-white/5 backdrop-blur-sm border border-white/10;
+}
+
+/* Gradient backgrounds */
+.gradient-bg {
+  @apply bg-gradient-to-b from-gray-900 to-black;
+}
+
+/* Fix wallet modal positioning */
+.wallet-adapter-modal-wrapper {
+  @apply w-full min-h-screen;
+}
+
+/* Fix wallet button container */
+.wallet-adapter-button-trigger {
+  @apply w-full sm:w-auto;
+}
+
+/* Ensure content is centered */
+#__next {
+  @apply w-full min-h-screen;
+}
+
+/* Wallet modal styles */
+.wallet-adapter-modal {
+  @apply bg-gray-900 !important;
+}
+
+.wallet-adapter-modal-button-close {
+  @apply bg-gray-800 hover:bg-gray-700 !important;
+}
+
+.wallet-adapter-modal-list {
+  @apply bg-gray-800 !important;
+}
+
+.wallet-adapter-modal-list-more {
+  @apply text-purple-400 !important;
+}
+
+.wallet-adapter-modal-title {
+  @apply text-white !important;
+} 

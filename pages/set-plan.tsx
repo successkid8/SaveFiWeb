@@ -179,93 +179,93 @@ const SetPlan = () => {
         ) : (
           <div className="space-y-8">
             {/* Daily Volume Selection */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h2 className="text-2xl font-semibold mb-4">Select Daily Trading Volume</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-semibold mb-4">Select Daily Trading Volume</h2>
+              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 {DAILY_VOLUMES.map((volume) => (
                   <button
                     key={volume.value}
                     onClick={() => setDailyVolume(volume.value)}
-                    className={`p-4 rounded-xl text-center transition-all duration-300 ${
+                    className={`p-3 sm:p-4 rounded-xl text-center transition-all duration-300 ${
                       dailyVolume === volume.value
                         ? 'bg-purple-600 border-purple-500'
                         : 'bg-white/5 border-white/10 hover:bg-white/10'
                     } border`}
                   >
-                    <div className="text-2xl font-bold mb-2">{volume.label}</div>
-                    <div className="text-sm text-gray-400">{volume.description}</div>
+                    <div className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">{volume.label}</div>
+                    <div className="text-xs sm:text-sm text-gray-400">{volume.description}</div>
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Save Rate Selection */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h2 className="text-2xl font-semibold mb-4">Select Save Rate</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-semibold mb-4">Select Save Rate</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 {SAVE_RATES.map((rate) => (
                   <button
                     key={rate.value}
                     onClick={() => setSaveRate(rate.value)}
-                    className={`p-4 rounded-xl text-center transition-all duration-300 ${
+                    className={`p-3 sm:p-4 rounded-xl text-center transition-all duration-300 ${
                       saveRate === rate.value
                         ? 'bg-purple-600 border-purple-500'
                         : 'bg-white/5 border-white/10 hover:bg-white/10'
                     } border`}
                   >
-                    <div className="text-2xl font-bold mb-2">{rate.label}</div>
-                    <div className="text-sm text-gray-400">{rate.description}</div>
+                    <div className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">{rate.label}</div>
+                    <div className="text-xs sm:text-sm text-gray-400">{rate.description}</div>
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Lock Period Selection */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h2 className="text-2xl font-semibold mb-4">Select Lock Period</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-semibold mb-4">Select Lock Period</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 {LOCK_PERIODS.map((period) => (
                   <button
                     key={period.value}
                     onClick={() => setLockPeriod(period.value)}
-                    className={`p-4 rounded-xl text-center transition-all duration-300 ${
+                    className={`p-3 sm:p-4 rounded-xl text-center transition-all duration-300 ${
                       lockPeriod === period.value
                         ? 'bg-purple-600 border-purple-500'
                         : 'bg-white/5 border-white/10 hover:bg-white/10'
                     } border`}
                   >
-                    <div className="text-2xl font-bold mb-2">{period.label}</div>
-                    <div className="text-sm text-gray-400">{period.description}</div>
+                    <div className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">{period.label}</div>
+                    <div className="text-xs sm:text-sm text-gray-400">{period.description}</div>
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Summary */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h2 className="text-2xl font-semibold mb-4">Plan Summary</h2>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-semibold mb-4">Plan Summary</h2>
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex justify-between items-center text-sm sm:text-base">
                   <span className="text-gray-400">Daily Volume:</span>
                   <span className="font-semibold">${dailyVolume.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center text-sm sm:text-base">
                   <span className="text-gray-400">Save Rate:</span>
                   <span className="font-semibold">{saveRate}%</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center text-sm sm:text-base">
                   <span className="text-gray-400">Lock Period:</span>
                   <span className="font-semibold">{lockPeriod} days</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center text-sm sm:text-base">
                   <span className="text-gray-400">Monthly Savings:</span>
                   <span className="font-semibold text-green-400">${calculateMonthlySavings()}</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center text-sm sm:text-base">
                   <span className="text-gray-400">Estimated Annual Rewards:</span>
                   <span className="font-semibold text-green-400">${calculateAnnualRewards()}</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center text-sm sm:text-base">
                   <span className="text-gray-400">Effective APY:</span>
                   <span className="font-semibold text-green-400">
                     {(5 + (lockPeriod / 30)).toFixed(1)}%
@@ -276,7 +276,7 @@ const SetPlan = () => {
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 sm:p-4 text-sm sm:text-base text-red-400">
                 {error}
               </div>
             )}
@@ -285,11 +285,11 @@ const SetPlan = () => {
             <button
               onClick={handleSubmit}
               disabled={isLoading}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>

@@ -3,9 +3,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useWallet } from '@solana/wallet-adapter-react';
 import SharedWalletButton from './SharedWalletButton';
-
-// Dynamically import Lottie with no SSR
-const Lottie = dynamic(() => import('react-lottie'), { ssr: false });
+import Lottie from 'lottie-react';
 
 // Error boundary component
 class ErrorBoundary extends React.Component<
@@ -36,7 +34,7 @@ class ErrorBoundary extends React.Component<
 const HeroSection = () => {
   const [animationError, setAnimationError] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [animationData, setAnimationData] = useState(null);
+  const [animationData, setAnimationData] = useState<any>(null);
   const { publicKey, connected } = useWallet();
 
   useEffect(() => {
@@ -46,15 +44,6 @@ const HeroSection = () => {
       setAnimationData(data.default);
     });
   }, []);
-
-  const defaultOptions = {
-    loop: true,
-    autoplay: true,
-    animationData: animationData,
-    rendererSettings: {
-      preserveAspectRatio: 'xMidYMid slice'
-    }
-  };
 
   // Optimize particles - reduce number and add staggered animation
   const particles = Array.from({ length: 10 }, (_, i) => ({
@@ -206,16 +195,10 @@ const HeroSection = () => {
               }>
                 {!animationError && animationData ? (
                   <Lottie
-                    options={defaultOptions}
-                    height={250}
-                    width={350}
-                    isClickToPauseDisabled={true}
-                    eventListeners={[
-                      {
-                        eventName: 'error',
-                        callback: () => setAnimationError(true)
-                      }
-                    ]}
+                    animationData={animationData}
+                    loop={true}
+                    style={{ width: 350, height: 250 }}
+                    onError={() => setAnimationError(true)}
                   />
                 ) : (
                   <div className="h-[250px] w-[350px] mx-auto flex items-center justify-center bg-purple-500/10 rounded-lg backdrop-blur-sm">

@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { Program, AnchorProvider, web3 } from '@project-serum/anchor';
+import { Program, AnchorProvider, web3, BN } from '@project-serum/anchor';
 import { PublicKey } from '@solana/web3.js';
 import Head from 'next/head';
 import Link from 'next/link';
 import idl from '../idl/savefi.json';
 import SharedWalletButton from '../components/SharedWalletButton';
 
-// TODO: Replace with your actual program ID after deployment
+// Keep dummy program ID for now
 const programID = new PublicKey('11111111111111111111111111111111');
 
 // Example save rates with descriptions
@@ -33,15 +33,26 @@ const DAILY_VOLUMES = [
   { value: 50000, label: '$50K', description: 'Professional trader' },
 ];
 
-export default function SetPlan() {
-  const { connection } = useConnection();
+// Create a wrapper for the wallet adapter to match Anchor's expected type
+const getAnchorWallet = (wallet: any) => {
+  if (!wallet) return null;
+  return {
+    publicKey: wallet.publicKey,
+    signTransaction: wallet.signTransaction.bind(wallet),
+    signAllTransactions: wallet.signAllTransactions.bind(wallet),
+  };
+};
+
+const SetPlan = () => {
   const { publicKey, wallet } = useWallet();
-  const [saveRate, setSaveRate] = useState(10);
-  const [lockPeriod, setLockPeriod] = useState(30);
+  const { connection } = useConnection();
+  const [saveRate, setSaveRate] = useState<number>(5);
+  const [lockPeriod, setLockPeriod] = useState<number>(30);
   const [dailyVolume, setDailyVolume] = useState(5000);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   // Calculate estimated monthly savings
   const calculateMonthlySavings = () => {
@@ -60,43 +71,58 @@ export default function SetPlan() {
     return annualRewards.toFixed(2);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!publicKey || !wallet) {
       setError('Please connect your wallet first');
       return;
     }
 
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     try {
-      const provider = new AnchorProvider(connection, wallet, {});
-      const program = new Program(idl, programID, provider);
+      const anchorWallet = getAnchorWallet(wallet);
+      if (!anchorWallet) {
+        throw new Error('Wallet not properly initialized');
+      }
+
+      const provider = new AnchorProvider(connection, anchorWallet, {});
+      const program = new Program(idl as any, programID, provider);
 
       const [vaultPda] = await PublicKey.findProgramAddress(
         [Buffer.from('vault'), publicKey.toBuffer()],
-        programID
+        program.programId
       );
 
-      await program.rpc.initializeVault(saveRate, {
-        accounts: {
+      const tx = await program.methods
+        .createVault(new BN(saveRate), new BN(lockPeriod))
+        .accounts({
           vault: vaultPda,
           user: publicKey,
           systemProgram: web3.SystemProgram.programId,
-        },
-      });
+        })
+        .rpc();
 
+      console.log('Transaction signature:', tx);
+      setTxHash(tx);
       setSuccess(true);
-    } catch (err: any) {
-      console.error('Vault creation error:', err);
-      if (err.message.includes('Signature request denied')) {
-        setError('Transaction cancelled. Please approve in your wallet.');
-      } else if (err.message.includes('insufficient funds')) {
-        setError('Insufficient SOL for transaction fees. Please fund your wallet.');
-      } else {
-        setError('Failed to create vault. Please try again or contact support.');
+    } catch (err) {
+      console.error('Error creating vault:', err);
+      let errorMessage = 'Failed to create vault';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('insufficient funds')) {
+          errorMessage = 'Insufficient SOL for transaction fees. Please fund your wallet.';
+        } else if (err.message.includes('user rejected')) {
+          errorMessage = 'Transaction was rejected. Please try again.';
+        } else {
+          errorMessage = err.message;
+        }
       }
+      
+      setError(errorMessage);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -135,9 +161,14 @@ export default function SetPlan() {
               <span className="text-6xl">🎉</span>
             </div>
             <h2 className="text-2xl font-bold mb-4">Vault Created Successfully!</h2>
-            <p className="text-gray-300 mb-8">
+            <p className="text-gray-300 mb-4">
               Your savings plan is now active. {saveRate}% of each trade will be automatically saved.
             </p>
+            {txHash && (
+              <p className="text-sm text-gray-400 mb-8">
+                Transaction: {txHash.slice(0, 8)}...{txHash.slice(-8)}
+              </p>
+            )}
             <Link
               href="/dashboard"
               className="inline-block bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300"
@@ -253,10 +284,10 @@ export default function SetPlan() {
             {/* Submit Button */}
             <button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={isLoading}
               className="w-full bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {isLoading ? (
                 <div className="flex items-center justify-center">
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -273,4 +304,6 @@ export default function SetPlan() {
       </div>
     </div>
   );
-}
+};
+
+export default SetPlan;

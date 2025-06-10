@@ -6,7 +6,6 @@ import { getProgram, initializeVault } from '../utils/anchor';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { motion } from 'framer-motion';
-import { FaLock, FaInfoCircle, FaExchangeAlt, FaPiggyBank, FaWallet } from 'react-icons/fa';
 import { useRouter } from 'next/router';
 import { PublicKey, SystemProgram } from '@solana/web3.js';
 import { getVaultPDA, getProxyPDA } from '../utils/anchor';

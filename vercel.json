@@ -16,5 +16,49 @@
       "src": "/(.*)",
       "dest": "/$1"
     }
-  ]
+  ],
+  "env": {
+    "NEXT_PUBLIC_RPC_ENDPOINT": "https://api.devnet.solana.com",
+    "NEXT_PUBLIC_PROGRAM_ID": "2Q4yUWhagMoXvij3YN7uutUUJ9kvXGs9TwX2fh6YEkZu"
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    }
+  ],
+  "regions": ["sfo1"],
+  "github": {
+    "silent": true
+  }
 }

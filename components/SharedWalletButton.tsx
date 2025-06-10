@@ -37,17 +37,18 @@ const SharedWalletButton: React.FC<SharedWalletButtonProps> = ({
     return (
       <button
         onClick={disconnect}
-        className={`flex items-center justify-center gap-2 bg-gray-800/50 backdrop-blur-sm hover:bg-gray-700/50 text-white px-6 py-4 rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 hover:scale-105 ${className}`}
+        className={`flex items-center justify-center gap-2 bg-gray-800/50 backdrop-blur-sm hover:bg-gray-700/50 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg shadow-lg transition-all duration-300 hover:scale-105 ${className}`}
       >
         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-        {formatAddress(publicKey.toString())}
+        <span className="hidden xs:inline">{formatAddress(publicKey.toString())}</span>
+        <span className="xs:hidden">Connected</span>
       </button>
     );
   }
 
   return (
     <div className={`wallet-adapter-button-trigger ${className}`}>
-      <WalletMultiButton />
+      <WalletMultiButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-xl !px-4 sm:!px-6 !py-3 sm:!py-4 !text-base sm:!text-lg !font-semibold !transition-all !duration-300 hover:!scale-105" />
     </div>
   );
 };

@@ -1,307 +1,495 @@
 import React, { useState } from 'react';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { Program, AnchorProvider, web3, BN } from '@project-serum/anchor';
-import { PublicKey } from '@solana/web3.js';
-import Head from 'next/head';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useConnection } from '@solana/wallet-adapter-react';
+import { AnchorProvider, BN } from '@project-serum/anchor';
+import { getProgram, initializeVault } from '../utils/anchor';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
+import { motion } from 'framer-motion';
+import { FaLock, FaInfoCircle, FaExchangeAlt, FaPiggyBank, FaWallet } from 'react-icons/fa';
+import { useRouter } from 'next/router';
+import { PublicKey, SystemProgram } from '@solana/web3.js';
+import { getVaultPDA, getProxyAccountPDA } from '../utils/anchor';
+import { getAssociatedTokenAddress } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import * as web3 from '@solana/web3.js';
 import Link from 'next/link';
-import idl from '../idl/savefi.json';
-import SharedWalletButton from '../components/SharedWalletButton';
 
-// Keep dummy program ID for now
-const programID = new PublicKey('11111111111111111111111111111111');
-
-// Example save rates with descriptions
-const SAVE_RATES = [
-  { value: 5, label: '5%', description: 'Conservative - Save a small portion of each trade' },
-  { value: 10, label: '10%', description: 'Balanced - Recommended for most traders' },
-  { value: 15, label: '15%', description: 'Aggressive - Save more for faster growth' },
-  { value: 20, label: '20%', description: 'Very Aggressive - Maximum savings rate' },
-];
-
-// Example lock periods
-const LOCK_PERIODS = [
-  { value: 30, label: '1 Month', description: 'Short-term lock for flexibility' },
-  { value: 90, label: '3 Months', description: 'Medium-term for better rewards' },
-  { value: 180, label: '6 Months', description: 'Long-term for maximum rewards' },
-];
-
-// Example daily volumes
-const DAILY_VOLUMES = [
-  { value: 1000, label: '$1K', description: 'Small trader' },
-  { value: 5000, label: '$5K', description: 'Medium trader' },
-  { value: 10000, label: '$10K', description: 'Active trader' },
-  { value: 50000, label: '$50K', description: 'Professional trader' },
-];
-
-// Create a wrapper for the wallet adapter to match Anchor's expected type
-const getAnchorWallet = (wallet: any) => {
-  if (!wallet) return null;
-  return {
-    publicKey: wallet.publicKey,
-    signTransaction: wallet.signTransaction.bind(wallet),
-    signAllTransactions: wallet.signAllTransactions.bind(wallet),
-  };
+const PROGRAM_CONSTANTS = {
+    // Delegation limits
+    MAX_DELEGATION_SOL: 5,
+    MIN_DELEGATION_SOL: 0.001,
+    DAILY_LIMIT_SOL: 50,
+    
+    // Lock periods
+    MIN_LOCK_DAYS: 1,
+    MAX_LOCK_DAYS: 30,
+    
+    // Savings rates
+    MIN_SAVE_RATE: 1,
+    MAX_SAVE_RATE: 20,
+    
+    // Fee rates
+    MIN_FEE_RATE: 0,
+    MAX_FEE_RATE: 5,
+    
+    // Subscription
+    SUBSCRIPTION_FEE_SOL: 0.25,
+    SUBSCRIPTION_PERIOD_DAYS: 7,
+    
+    // Cooldown
+    DELEGATION_COOLDOWN_HOURS: 1
 };
 
 const SetPlan = () => {
-  const { publicKey, wallet } = useWallet();
+  const { publicKey: wallet, wallet: walletAdapter } = useWallet();
   const { connection } = useConnection();
-  const [saveRate, setSaveRate] = useState<number>(5);
-  const [lockPeriod, setLockPeriod] = useState<number>(30);
-  const [dailyVolume, setDailyVolume] = useState(5000);
-  const [isLoading, setIsLoading] = useState(false);
+  const [saveRate, setSaveRate] = useState(10);
+  const [lockDays, setLockDays] = useState(7);
+  const [previewAmount, setPreviewAmount] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<'idle' | 'initializing' | 'delegating'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [platformFee, setPlatformFee] = useState(2);
+  const [maxDelegationAmount, setMaxDelegationAmount] = useState(5);
+  const [showLockWarning, setShowLockWarning] = useState(false);
+  const router = useRouter();
 
-  // Calculate estimated monthly savings
-  const calculateMonthlySavings = () => {
-    const dailySavings = (dailyVolume * saveRate) / 100;
-    const monthlySavings = dailySavings * 30;
-    return monthlySavings.toFixed(2);
+  const handleLockDaysChange = (days: number) => {
+    setLockDays(days);
+    setMaxDelegationAmount(PROGRAM_CONSTANTS.MAX_DELEGATION_SOL);
   };
 
-  // Calculate estimated annual rewards
-  const calculateAnnualRewards = () => {
-    const monthlySavings = parseFloat(calculateMonthlySavings());
-    const baseAPY = 5; // Base APY of 5%
-    const lockPeriodMultiplier = lockPeriod / 30; // Additional APY based on lock period
-    const totalAPY = baseAPY + lockPeriodMultiplier;
-    const annualRewards = (monthlySavings * 12 * totalAPY) / 100;
-    return annualRewards.toFixed(2);
+  const handleDelegationAmountChange = (amount: number) => {
+    if (amount < lockDays) {
+      setShowLockWarning(true);
+    } else {
+      setShowLockWarning(false);
+    }
+    setMaxDelegationAmount(amount);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!publicKey || !wallet) {
-      setError('Please connect your wallet first');
-      return;
+    if (!wallet || !connection) {
+        setError('Please connect your wallet first');
+        return;
     }
 
-    setIsLoading(true);
-    setError(null);
     try {
-      const anchorWallet = getAnchorWallet(wallet);
-      if (!anchorWallet) {
-        throw new Error('Wallet not properly initialized');
-      }
+        setLoading(true);
+        setLoadingStep('initializing');
+        setError(null);
+        setSuccess(null);
+        setTxHash(null);
 
-      const provider = new AnchorProvider(connection, anchorWallet, {});
-      const program = new Program(idl as any, programID, provider);
-
-      const [vaultPda] = await PublicKey.findProgramAddress(
-        [Buffer.from('vault'), publicKey.toBuffer()],
-        program.programId
-      );
-
-      const tx = await program.methods
-        .createVault(new BN(saveRate), new BN(lockPeriod))
-        .accounts({
-          vault: vaultPda,
-          user: publicKey,
-          systemProgram: web3.SystemProgram.programId,
-        })
-        .rpc();
-
-      console.log('Transaction signature:', tx);
-      setTxHash(tx);
-      setSuccess(true);
-    } catch (err) {
-      console.error('Error creating vault:', err);
-      let errorMessage = 'Failed to create vault';
-      
-      if (err instanceof Error) {
-        if (err.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient SOL for transaction fees. Please fund your wallet.';
-        } else if (err.message.includes('user rejected')) {
-          errorMessage = 'Transaction was rejected. Please try again.';
-        } else {
-          errorMessage = err.message;
+        // Validate inputs with specific error messages
+        if (saveRate < PROGRAM_CONSTANTS.MIN_SAVE_RATE || saveRate > PROGRAM_CONSTANTS.MAX_SAVE_RATE) {
+            throw new Error(`Save rate must be between ${PROGRAM_CONSTANTS.MIN_SAVE_RATE}-${PROGRAM_CONSTANTS.MAX_SAVE_RATE}%`);
         }
-      }
-      
-      setError(errorMessage);
+        if (lockDays < PROGRAM_CONSTANTS.MIN_LOCK_DAYS || lockDays > PROGRAM_CONSTANTS.MAX_LOCK_DAYS) {
+            throw new Error(`Lock period must be between ${PROGRAM_CONSTANTS.MIN_LOCK_DAYS}-${PROGRAM_CONSTANTS.MAX_LOCK_DAYS} days`);
+        }
+
+        // Initialize vault through Anchor program
+        const provider = new AnchorProvider(connection, walletAdapter as any, {
+            commitment: 'confirmed',
+            preflightCommitment: 'confirmed',
+        });
+        const program = getProgram(provider);
+        
+        // Get PDAs
+        const [vault] = await PublicKey.findProgramAddressSync(
+            [Buffer.from("vault"), wallet.toBuffer()],
+            program.programId
+        );
+        const [proxyAccount] = await PublicKey.findProgramAddressSync(
+            [Buffer.from("proxy"), wallet.toBuffer()],
+            program.programId
+        );
+
+        // Get vault token account
+        const vaultTokenAccount = await getAssociatedTokenAddress(
+            new PublicKey(process.env.NEXT_PUBLIC_SAVE_TOKEN_MINT!),
+            vault,
+            true
+        );
+
+        // Call initialize_vault
+        const tx = await program.methods
+            .initializeVault(
+                new BN(saveRate),
+                new BN(lockDays)
+            )
+            .accounts({
+                vault: vault,
+                proxyAccount: proxyAccount,
+                vaultTokenAccount: vaultTokenAccount,
+                saveTokenMint: new PublicKey(process.env.NEXT_PUBLIC_SAVE_TOKEN_MINT!),
+                user: wallet,
+                config: new PublicKey(process.env.NEXT_PUBLIC_CONFIG_ACCOUNT!),
+                admin: new PublicKey(process.env.NEXT_PUBLIC_ADMIN_ACCOUNT!),
+                systemProgram: SystemProgram.programId,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            })
+            .rpc();
+
+        setTxHash(tx);
+        setSuccess('Vault created successfully!');
+        
+        // Wait for confirmation
+        await connection.confirmTransaction(tx, 'confirmed');
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+            router.push('/dashboard');
+        }, 2000);
+
+    } catch (err) {
+        console.error('Error creating vault:', err);
+        let errorMessage = 'Failed to create vault';
+        
+        if (err instanceof Error) {
+            // Handle specific Anchor errors
+            if (err.message.includes('VaultAlreadyInitialized')) {
+                errorMessage = 'You already have a vault. Please use your existing vault.';
+            } else if (err.message.includes('InvalidSaveRate')) {
+                errorMessage = `Save rate must be between ${PROGRAM_CONSTANTS.MIN_SAVE_RATE}-${PROGRAM_CONSTANTS.MAX_SAVE_RATE}%`;
+            } else if (err.message.includes('InvalidLockPeriod')) {
+                errorMessage = `Lock period must be between ${PROGRAM_CONSTANTS.MIN_LOCK_DAYS}-${PROGRAM_CONSTANTS.MAX_LOCK_DAYS} days`;
+            } else {
+                errorMessage = err.message;
+            }
+        }
+        
+        setError(errorMessage);
     } finally {
-      setIsLoading(false);
+        setLoading(false);
+        setLoadingStep('idle');
     }
   };
 
-  if (!publicKey) {
+  if (!wallet) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl font-bold mb-8">Connect Your Wallet</h1>
-          <p className="text-xl text-gray-300 mb-12">
-            Please connect your wallet to set up your savings plan.
-          </p>
-          <SharedWalletButton className="!bg-purple-600 hover:!bg-purple-700 !rounded-full !px-8 !py-3 !text-lg" />
+      <div className="min-h-screen bg-gray-900">
+        <Navbar />
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <h2 className="text-2xl font-semibold text-white mb-4">Connect your wallet to set your savings plan</h2>
+          <p className="text-gray-300">Please connect your wallet to continue</p>
         </div>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white py-20">
-      <Head>
-        <title>Set Your Save Plan - SaveFi</title>
-        <meta name="description" content="Configure your automatic savings plan with SaveFi" />
-      </Head>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">Set Your Save Plan</h1>
-          <p className="text-xl text-gray-300">
-            Configure how much you want to save from each trade
-          </p>
-        </div>
-
-        {success ? (
-          <div className="text-center">
-            <div className="mb-8">
-              <span className="text-6xl">🎉</span>
-            </div>
-            <h2 className="text-2xl font-bold mb-4">Vault Created Successfully!</h2>
-            <p className="text-gray-300 mb-4">
-              Your savings plan is now active. {saveRate}% of each trade will be automatically saved.
-            </p>
-            {txHash && (
-              <p className="text-sm text-gray-400 mb-8">
-                Transaction: {txHash.slice(0, 8)}...{txHash.slice(-8)}
-              </p>
-            )}
-            <Link
-              href="/dashboard"
-              className="inline-block bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300"
-            >
-              Go to Dashboard
-            </Link>
+    <div className="min-h-screen bg-gray-900">
+      <Navbar />
+      <main className="container mx-auto px-4 pt-24 pb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="max-w-2xl mx-auto"
+        >
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white mb-4">Set Your Save Plan</h1>
+            <p className="text-xl text-gray-300">Configure your automated savings strategy</p>
           </div>
-        ) : (
-          <div className="space-y-8">
-            {/* Daily Volume Selection */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-semibold mb-4">Select Daily Trading Volume</h2>
-              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                {DAILY_VOLUMES.map((volume) => (
-                  <button
-                    key={volume.value}
-                    onClick={() => setDailyVolume(volume.value)}
-                    className={`p-3 sm:p-4 rounded-xl text-center transition-all duration-300 ${
-                      dailyVolume === volume.value
-                        ? 'bg-purple-600 border-purple-500'
-                        : 'bg-white/5 border-white/10 hover:bg-white/10'
-                    } border`}
-                  >
-                    <div className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">{volume.label}</div>
-                    <div className="text-xs sm:text-sm text-gray-400">{volume.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Save Rate Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"
+            >
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-purple-500/20 rounded-lg">
+                        <FaPiggyBank className="text-purple-400 text-xl" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-semibold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                            Save Rate
+                        </h3>
+                        <p className="text-sm text-gray-400">How much to save from each trade</p>
+                    </div>
+                </div>
 
-            {/* Save Rate Selection */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-semibold mb-4">Select Save Rate</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                {SAVE_RATES.map((rate) => (
-                  <button
-                    key={rate.value}
-                    onClick={() => setSaveRate(rate.value)}
-                    className={`p-3 sm:p-4 rounded-xl text-center transition-all duration-300 ${
-                      saveRate === rate.value
-                        ? 'bg-purple-600 border-purple-500'
-                        : 'bg-white/5 border-white/10 hover:bg-white/10'
-                    } border`}
-                  >
-                    <div className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">{rate.label}</div>
-                    <div className="text-xs sm:text-sm text-gray-400">{rate.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
+                <div className="mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-gray-300">Save Rate: {saveRate}%</span>
+                        <span className="text-purple-400">{saveRate}%</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="1"
+                        max="20"
+                        value={saveRate}
+                        onChange={(e) => setSaveRate(parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                    />
+                    <div className="flex justify-between text-gray-400 text-sm mt-2">
+                        <span>1%</span>
+                        <span>20%</span>
+                    </div>
+                </div>
 
-            {/* Lock Period Selection */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-semibold mb-4">Select Lock Period</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                {LOCK_PERIODS.map((period) => (
-                  <button
-                    key={period.value}
-                    onClick={() => setLockPeriod(period.value)}
-                    className={`p-3 sm:p-4 rounded-xl text-center transition-all duration-300 ${
-                      lockPeriod === period.value
-                        ? 'bg-purple-600 border-purple-500'
-                        : 'bg-white/5 border-white/10 hover:bg-white/10'
-                    } border`}
-                  >
-                    <div className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">{period.label}</div>
-                    <div className="text-xs sm:text-sm text-gray-400">{period.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
+                <div className="bg-purple-500/10 rounded-lg p-4 border border-purple-500/20">
+                    <p className="text-gray-300">
+                        <span className="text-purple-400 font-medium">Example:</span> On a 1 SOL trade, you'll save {(1 * saveRate / 100).toFixed(2)} SOL
+                    </p>
+                </div>
+            </motion.div>
 
-            {/* Summary */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-semibold mb-4">Plan Summary</h2>
-              <div className="space-y-3 sm:space-y-4">
-                <div className="flex justify-between items-center text-sm sm:text-base">
-                  <span className="text-gray-400">Daily Volume:</span>
-                  <span className="font-semibold">${dailyVolume.toLocaleString()}</span>
+            {/* Lock Period Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"
+            >
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-blue-500/20 rounded-lg">
+                        <FaLock className="text-blue-400 text-xl" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-semibold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                            Lock Period
+                        </h3>
+                        <p className="text-sm text-gray-400">How long to lock your savings</p>
+                    </div>
                 </div>
-                <div className="flex justify-between items-center text-sm sm:text-base">
-                  <span className="text-gray-400">Save Rate:</span>
-                  <span className="font-semibold">{saveRate}%</span>
-                </div>
-                <div className="flex justify-between items-center text-sm sm:text-base">
-                  <span className="text-gray-400">Lock Period:</span>
-                  <span className="font-semibold">{lockPeriod} days</span>
-                </div>
-                <div className="flex justify-between items-center text-sm sm:text-base">
-                  <span className="text-gray-400">Monthly Savings:</span>
-                  <span className="font-semibold text-green-400">${calculateMonthlySavings()}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm sm:text-base">
-                  <span className="text-gray-400">Estimated Annual Rewards:</span>
-                  <span className="font-semibold text-green-400">${calculateAnnualRewards()}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm sm:text-base">
-                  <span className="text-gray-400">Effective APY:</span>
-                  <span className="font-semibold text-green-400">
-                    {(5 + (lockPeriod / 30)).toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 sm:p-4 text-sm sm:text-base text-red-400">
-                {error}
-              </div>
-            )}
+                <div className="mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-gray-300">Lock Period: {lockDays} days</span>
+                        <span className="text-blue-400">{lockDays} days</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="1"
+                        max="30"
+                        value={lockDays}
+                        onChange={(e) => handleLockDaysChange(parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <div className="flex justify-between text-gray-400 text-sm mt-2">
+                        <span>1 day</span>
+                        <span>30 days</span>
+                    </div>
+                </div>
+
+                <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20">
+                    <p className="text-gray-300">
+                        <span className="text-blue-400 font-medium">Note:</span> Your savings will be locked for {lockDays} days after each trade. You can extend this period later.
+                    </p>
+                </div>
+            </motion.div>
+
+            {/* Platform Fee Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"
+            >
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-green-500/20 rounded-lg">
+                        <FaInfoCircle className="text-green-400 text-xl" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-semibold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
+                            Platform Fee
+                        </h3>
+                        <p className="text-sm text-gray-400">Current platform fee</p>
+                    </div>
+                </div>
+                <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20">
+                    <p className="text-gray-300">
+                        <span className="text-green-400 font-medium">{platformFee}%</span> of each trade goes to the platform
+                    </p>
+                </div>
+            </motion.div>
+
+            {/* Fund Delegation Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"
+            >
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-yellow-500/20 rounded-lg">
+                        <FaWallet className="text-yellow-400 text-xl" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-semibold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                            Fund Delegation
+                        </h3>
+                        <p className="text-sm text-gray-400">Set your maximum delegation amount</p>
+                    </div>
+                </div>
+
+                {/* Delegation Settings */}
+                <div className="space-y-4">
+                    <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-500/20">
+                        <h4 className="text-white font-medium mb-3">Delegation Settings</h4>
+                        
+                        {/* Limits Info */}
+                        <div className="bg-blue-500/10 rounded-lg p-4 border border-blue-500/20 mb-4">
+                            <h5 className="text-blue-400 font-medium mb-2">Platform Limits</h5>
+                            <div className="space-y-2">
+                                <p className="text-gray-300 text-sm">
+                                    <span className="text-blue-400 font-medium">Daily Limit:</span> {PROGRAM_CONSTANTS.DAILY_LIMIT_SOL} SOL
+                                </p>
+                                <p className="text-gray-300 text-sm">
+                                    <span className="text-blue-400 font-medium">Max per Transaction:</span> {PROGRAM_CONSTANTS.MAX_DELEGATION_SOL} SOL
+                                </p>
+                                <p className="text-gray-300 text-sm">
+                                    <span className="text-blue-400 font-medium">Min per Transaction:</span> {PROGRAM_CONSTANTS.MIN_DELEGATION_SOL} SOL
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Max Amount Setting */}
+                        <div className="mb-4">
+                            <label className="block text-gray-300 text-sm mb-2">
+                                Maximum Delegation Amount (SOL)
+                            </label>
+                            <input
+                                type="number"
+                                min={PROGRAM_CONSTANTS.MIN_DELEGATION_SOL}
+                                max={PROGRAM_CONSTANTS.MAX_DELEGATION_SOL}
+                                step="0.1"
+                                value={maxDelegationAmount}
+                                onChange={(e) => handleDelegationAmountChange(Number(e.target.value))}
+                                className="w-full bg-gray-700/50 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            />
+                            <p className="text-gray-400 text-xs mt-1">
+                                Maximum amount that can be delegated per transaction
+                            </p>
+                        </div>
+
+                        {showLockWarning && (
+                            <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20 mt-4">
+                                <p className="text-red-400 text-sm">
+                                    ⚠️ Warning: Your delegation amount is less than your lock period. This may affect your savings plan.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Subscription Info */}
+                    <div className="bg-purple-500/10 rounded-lg p-4 border border-purple-500/20">
+                        <h4 className="text-white font-medium mb-3">Subscription Information</h4>
+                        <div className="space-y-2">
+                            <p className="text-gray-300 text-sm">
+                                <span className="text-purple-400 font-medium">Subscription Period:</span> {PROGRAM_CONSTANTS.SUBSCRIPTION_PERIOD_DAYS} days
+                            </p>
+                            <p className="text-gray-300 text-sm">
+                                <span className="text-purple-400 font-medium">Subscription Fee:</span> {PROGRAM_CONSTANTS.SUBSCRIPTION_FEE_SOL} SOL
+                            </p>
+                            <p className="text-gray-300 text-sm italic">
+                                Note: Subscription status and renewal can be managed from your vault page
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* FAQ Reference */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"
+            >
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-indigo-500/20 rounded-lg">
+                        <FaInfoCircle className="text-indigo-400 text-xl" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-semibold bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
+                            Need More Information?
+                        </h3>
+                        <p className="text-sm text-gray-400">Check out our comprehensive FAQ section</p>
+                    </div>
+                </div>
+
+                <div className="bg-indigo-500/10 rounded-lg p-4 border border-indigo-500/20">
+                    <p className="text-gray-300 mb-4">
+                        For detailed information about SaveFi's features, limits, and security, visit our FAQ section on the home page.
+                    </p>
+                    <Link 
+                        href="/"
+                        className="inline-block bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold px-6 py-2 rounded-lg transition-all duration-200"
+                    >
+                        View FAQ Section
+                    </Link>
+                </div>
+            </motion.div>
 
             {/* Submit Button */}
-            <button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="mt-8 space-y-4"
             >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Creating Vault...
-                </div>
-              ) : (
-                'Create Vault'
-              )}
-            </button>
-          </div>
-        )}
-      </div>
+                {error && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                        <p className="text-red-400">{error}</p>
+                    </div>
+                )}
+                
+                {success && (
+                    <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+                        <p className="text-green-400">{success}</p>
+                        {txHash && (
+                            <a 
+                                href={`https://explorer.solana.com/tx/${txHash}?cluster=devnet`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-green-400 hover:text-green-300 text-sm mt-2 inline-block"
+                            >
+                                View Transaction →
+                            </a>
+                        )}
+                    </div>
+                )}
+
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className={`w-full py-4 px-6 rounded-xl text-lg font-semibold transition-all relative ${
+                        loading
+                            ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white'
+                    }`}
+                >
+                    {loading ? (
+                        <div className="flex items-center justify-center gap-2">
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>
+                                {loadingStep === 'initializing' ? 'Creating Vault...' : 
+                                 loadingStep === 'delegating' ? 'Setting up Delegation...' : 
+                                 'Processing...'}
+                            </span>
+                        </div>
+                    ) : (
+                        'Create Vault'
+                    )}
+                </button>
+            </motion.div>
+          </form>
+        </motion.div>
+      </main>
+      <Footer />
     </div>
   );
 };

@@ -47,3 +47,28 @@ next-env.d.ts
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Solana specific
+/target/
+**/*.so
+**/*.dylib
+**/*.dll
+*-keypair.json
+.solana/
+test-ledger/
+
+# Logs
+logs
+*.log
+
+# Rust
+Cargo.lock
+target/
+**/*.rs.bk
+
+# Keep these files
+!Cargo.toml
+!Anchor.toml
+!programs/
+!tests/
+!scripts/

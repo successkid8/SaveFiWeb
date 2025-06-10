@@ -2,26 +2,26 @@ import React from 'react';
 import SharedWalletButton from './SharedWalletButton';
 
 const WhySaveFi: React.FC = () => {
-  const benefits = [
+  const features = [
     {
-      icon: '🔒',
-      title: 'Secure Savings',
-      description: 'Your funds are locked in a time-locked vault, ensuring you save for your future.'
+      icon: '💸',
+      title: 'Save While Trading',
+      description: 'Automatically save a portion of every trade you make'
     },
     {
-      icon: '💎',
-      title: 'Rewards Program',
-      description: 'Earn additional rewards for maintaining your savings and participating in the ecosystem.'
+      icon: '🔐',
+      title: 'Your Money, Your Control',
+      description: 'Your funds stay in your wallet - we never hold them'
     },
     {
-      icon: '📈',
-      title: 'Growth Potential',
-      description: 'Benefit from compound interest and platform growth while your savings are locked.'
+      icon: '📊',
+      title: 'Multiple DEXs',
+      description: 'Save from trades on 5 major Solana DEXs'
     },
     {
-      icon: '🔄',
-      title: 'Automated Process',
-      description: 'Set it and forget it - your savings are automatically deducted from your trades.'
+      icon: '⚡',
+      title: 'Simple Setup',
+      description: 'Connect wallet, set save rate, start saving'
     }
   ];
 
@@ -30,24 +30,24 @@ const WhySaveFi: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Why Choose SaveFi?
+            What SaveFi Does
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            We're revolutionizing the way traders save and build wealth in the crypto space.
+            Save automatically from your trades. Your money, your control.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {benefits.map((benefit, index) => (
+          {features.map((feature, index) => (
             <div
               key={index}
               className="p-6 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-purple-500/50 transition-all duration-300"
             >
               <div className="flex items-start space-x-4">
-                <div className="text-4xl">{benefit.icon}</div>
+                <div className="text-4xl">{feature.icon}</div>
                 <div>
-                  <h3 className="text-xl font-semibold mb-2">{benefit.title}</h3>
-                  <p className="text-gray-400">{benefit.description}</p>
+                  <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-gray-400">{feature.description}</p>
                 </div>
               </div>
             </div>
@@ -56,9 +56,9 @@ const WhySaveFi: React.FC = () => {
 
         <div className="mt-16 text-center">
           <div className="inline-block p-6 rounded-2xl bg-purple-600/20 backdrop-blur-sm border border-purple-500/20">
-            <h3 className="text-2xl font-bold mb-4">Ready to Start Saving?</h3>
+            <h3 className="text-2xl font-bold mb-4">Start Saving Now</h3>
             <p className="text-gray-300 mb-6">
-              Join thousands of traders who are building wealth with SaveFi.
+              Connect your wallet to begin
             </p>
             <SharedWalletButton className="bg-purple-600 hover:bg-purple-700 text-white rounded-full px-8 py-3 text-lg transition-all duration-200" />
           </div>

@@ -4,7 +4,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { motion } from 'framer-motion';
-import { useAnchorProgram, getVaultData, withdraw, setLockPeriod } from '../utils/anchor';
+import { useAnchorProgram, getVaultData, withdraw, setLockPeriod, updateVault } from '../utils/anchor';
 import { getVaultPDA } from '../utils/program';
 import { PublicKey } from '@solana/web3.js';
 
@@ -20,6 +20,8 @@ export default function Vault() {
   const [saveRate, setSaveRate] = useState(0);
   const [vaultPDA, setVaultPDA] = useState<PublicKey | null>(null);
   const [extendLockDays, setExtendLockDays] = useState(7);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -34,7 +36,6 @@ export default function Vault() {
         try {
           const [pda] = getVaultPDA(publicKey);
           setVaultPDA(pda);
-          
           const { success, vault } = await getVaultData(program, pda);
           if (success && vault) {
             setTotalBalance(vault.balance.toNumber() / 1e9); // Convert from lamports to SOL
@@ -44,60 +45,47 @@ export default function Vault() {
             setSaveRate(vault.saveRate);
           }
         } catch (error) {
-          console.error('Error fetching vault data:', error);
+          setErrorMsg('Error fetching vault data');
         }
       }
     };
-
     if (!loading) {
       fetchVaultData();
     }
   }, [program, publicKey, loading]);
 
   const handleWithdraw = async () => {
+    setErrorMsg(''); setSuccessMsg('');
     if (!isLocked && totalBalance > 0 && program && publicKey && vaultPDA) {
       try {
-        const { success, tx } = await withdraw(
-          program,
-          { publicKey },
-          vaultPDA,
-          totalBalance * 1e9 // Convert from SOL to lamports
-        );
-        
-        if (success) {
-          // Refresh vault data
-          const { vault } = await getVaultData(program, vaultPDA);
-          if (vault) {
-            setTotalBalance(vault.balance.toNumber() / 1e9);
-            setIsLocked(vault.isLocked);
-          }
+        await withdraw(program, vaultPDA);
+        setSuccessMsg('Withdrawal successful!');
+        // Refresh vault data
+        const { vault } = await getVaultData(program, vaultPDA);
+        if (vault) {
+          setTotalBalance(vault.balance.toNumber() / 1e9);
+          setIsLocked(vault.isLocked);
         }
       } catch (error) {
-        console.error('Error withdrawing:', error);
+        setErrorMsg('Error withdrawing');
       }
     }
   };
 
   const handleExtendLock = async () => {
+    setErrorMsg(''); setSuccessMsg('');
     if (extendLockDays >= 1 && extendLockDays <= 30 && program && publicKey && vaultPDA) {
       try {
-        const { success, tx } = await setLockPeriod(
-          program,
-          { publicKey },
-          vaultPDA,
-          extendLockDays
-        );
-        
-        if (success) {
-          // Refresh vault data
-          const { vault } = await getVaultData(program, vaultPDA);
-          if (vault) {
-            setLockPeriod(vault.lockPeriod);
-            setNextUnlock(new Date(vault.lockUntil.toNumber() * 1000));
-          }
+        await updateVault(program, vaultPDA, saveRate, extendLockDays);
+        setSuccessMsg('Lock period extended!');
+        // Refresh vault data
+        const { vault } = await getVaultData(program, vaultPDA);
+        if (vault) {
+          setLockPeriod(vault.lockPeriod);
+          setNextUnlock(new Date(vault.lockUntil.toNumber() * 1000));
         }
       } catch (error) {
-        console.error('Error extending lock period:', error);
+        setErrorMsg('Error extending lock period');
       }
     }
   };
@@ -121,7 +109,7 @@ export default function Vault() {
           </div>
 
           {/* Vault Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+          <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-4 md:p-6 border border-gray-700/50">
               <h3 className="text-lg font-semibold text-white mb-2">Total Balance</h3>
               <p className="text-2xl md:text-3xl font-bold text-blue-400">{totalBalance} SOL</p>
@@ -139,10 +127,10 @@ export default function Vault() {
               </p>
               <p className="text-sm text-gray-400 mt-2">Available for withdrawal</p>
             </div>
-          </div>
+          </section>
 
           {/* Vault Settings */}
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-gray-700/50">
+          <section className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-gray-700/50">
             <h2 className="text-2xl font-bold text-white mb-6">Vault Settings</h2>
             <div className="space-y-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -157,6 +145,7 @@ export default function Vault() {
                   value={saveRate}
                   onChange={(e) => setSaveRate(Number(e.target.value))}
                   className="bg-gray-700/50 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-32"
+                  disabled
                 />
               </div>
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -182,10 +171,12 @@ export default function Vault() {
                 </div>
               </div>
             </div>
-          </div>
+            {successMsg && <div className="mt-4 text-green-400">{successMsg}</div>}
+            {errorMsg && <div className="mt-4 text-red-400">{errorMsg}</div>}
+          </section>
 
           {/* Withdrawal Section */}
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-gray-700/50">
+          <section className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 md:p-8 border border-gray-700/50">
             <h2 className="text-2xl font-bold text-white mb-6">Withdrawal</h2>
             {totalBalance > 0 ? (
               <div className="space-y-6">
@@ -218,7 +209,9 @@ export default function Vault() {
                 <p className="text-gray-400">No funds available for withdrawal</p>
               </div>
             )}
-          </div>
+            {successMsg && <div className="mt-4 text-green-400">{successMsg}</div>}
+            {errorMsg && <div className="mt-4 text-red-400">{errorMsg}</div>}
+          </section>
         </motion.div>
       </main>
       <Footer />

@@ -5,7 +5,79 @@ import { useState, useEffect, useMemo } from 'react';
 import idlJson from '../target/idl/savefi.json';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
 import { PROGRAM_ID } from './program';
-import { SaveFi } from "../target/types/savefi";
+import { Savefi } from '../target/types/savefi';
+
+// Create a proper IDL object
+const idl: Idl = {
+  version: idlJson.metadata.version,
+  name: idlJson.metadata.name,
+  instructions: idlJson.instructions.map((ix: any) => ({
+    name: ix.name,
+    accounts: ix.accounts.map((acc: any) => ({
+      name: acc.name,
+      isMut: acc.writable,
+      isSigner: acc.signer || false,
+      ...(acc.pda && {
+        pda: {
+          seeds: acc.pda.seeds.map((seed: any) => ({
+            kind: seed.kind,
+            ...(seed.value && { value: seed.value }),
+            ...(seed.path && { path: seed.path })
+          }))
+        }
+      })
+    })),
+    args: ix.args.map((arg: any) => ({
+      name: arg.name,
+      type: arg.type
+    }))
+  })),
+  accounts: idlJson.accounts.map((acc: any) => ({
+    name: acc.name,
+    type: {
+      kind: "struct",
+      fields: acc.type?.fields?.map((field: any) => ({
+        name: field.name,
+        type: field.type
+      })) || []
+    }
+  })),
+  errors: idlJson.errors.map((err: any) => ({
+    code: err.code,
+    name: err.name,
+    msg: err.msg
+  })),
+  metadata: {
+    address: PROGRAM_ID.toString(),
+    ...idlJson.metadata
+  }
+};
+
+// Helper function to safely create PublicKey from environment variable
+const getPublicKeyFromEnv = (envVar: string | undefined, fallback: string): PublicKey => {
+  try {
+    return new PublicKey(envVar || fallback);
+  } catch (error) {
+    console.warn(`Invalid public key for ${envVar}, using fallback`);
+    return new PublicKey(fallback);
+  }
+};
+
+// Constants with fallback values
+export const SAVESOL_MINT = getPublicKeyFromEnv(
+  process.env.NEXT_PUBLIC_SAVE_TOKEN_MINT,
+  '11111111111111111111111111111111'
+);
+
+export const CONFIG_PDA = getPublicKeyFromEnv(
+  process.env.NEXT_PUBLIC_CONFIG_PDA,
+  '11111111111111111111111111111111'
+);
+
+export const ADMIN_PUBKEY = getPublicKeyFromEnv(
+  process.env.NEXT_PUBLIC_ADMIN_PUBKEY,
+  '11111111111111111111111111111111'
+);
 
 // Initialize the Anchor provider
 export const getProvider = (connection: Connection, wallet: any) => {
@@ -18,90 +90,37 @@ export const getProvider = (connection: Connection, wallet: any) => {
 
 // Initialize the program
 export const getProgram = (provider: AnchorProvider) => {
-  // Create a proper IDL object
-  const idl: Idl = {
-    version: idlJson.metadata.version,
-    name: idlJson.metadata.name,
-    instructions: idlJson.instructions.map((ix: any) => ({
-      name: ix.name,
-      accounts: ix.accounts.map((acc: any) => ({
-        name: acc.name,
-        isMut: acc.writable,
-        isSigner: acc.signer || false,
-        ...(acc.pda && {
-          pda: {
-            seeds: acc.pda.seeds.map((seed: any) => ({
-              kind: seed.kind,
-              ...(seed.value && { value: seed.value }),
-              ...(seed.path && { path: seed.path })
-            }))
-          }
-        })
-      })),
-      args: ix.args.map((arg: any) => ({
-        name: arg.name,
-        type: arg.type
-      }))
-    })),
-    accounts: idlJson.accounts.map((acc: any) => ({
-      name: acc.name,
-      type: {
-        kind: "struct",
-        fields: acc.type?.fields?.map((field: any) => ({
-          name: field.name,
-          type: field.type
-        })) || []
-      }
-    })),
-    errors: idlJson.errors.map((err: any) => ({
-      code: err.code,
-      name: err.name,
-      msg: err.msg
-    })),
-    metadata: {
-      address: PROGRAM_ID.toString(),
-      ...idlJson.metadata
-    }
-  };
-
   return new Program(idl, PROGRAM_ID, provider);
 };
 
 // Initialize vault
 export async function initializeVault(
-    program: Program<SaveFi>,
-    user: PublicKey,
-    saveRate: number,
-    lockDays: number,
-    activeDexs: string[],
-    platformFee: number
-): Promise<TransactionSignature> {
-    const [vault] = PublicKey.findProgramAddressSync(
-        [Buffer.from("vault"), user.toBuffer()],
-        program.programId
-    );
-
-    const [proxyAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from("proxy"), user.toBuffer()],
-        program.programId
-    );
-
+  program: Program<Idl>,
+  user: PublicKey,
+  savingsRate: number,
+  lockDays: number
+): Promise<{ success: boolean }> {
+  try {
     const tx = await program.methods
-        .initializeVault(
-            saveRate,
-            lockDays,
-            activeDexs.map(dexId => new PublicKey(dexId)),
-            platformFee
-        )
-        .accounts({
-            user,
-            vault,
-            proxyAccount,
-            systemProgram: SystemProgram.programId,
-        })
-        .rpc();
-
-    return tx;
+      .initializeVault(savingsRate, lockDays)
+      .accounts({
+        vault: await getVaultPDA(user),
+        proxyAccount: await getProxyPDA(user),
+        vaultTokenAccount: await getAssociatedTokenAddress(user, SAVESOL_MINT),
+        saveTokenMint: SAVESOL_MINT,
+        user,
+        config: CONFIG_PDA,
+        admin: ADMIN_PUBKEY,
+        systemProgram: SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+    return { success: true };
+  } catch (error) {
+    console.error('Error initializing vault:', error);
+    return { success: false };
+  }
 }
 
 // Set save rate
@@ -162,34 +181,30 @@ export const getVaultData = async (program: Program, vaultPDA: PublicKey) => {
 };
 
 // Withdraw from vault
-export const withdraw = async (
-  program: Program,
-  wallet: any,
-  vaultPDA: PublicKey,
-  amount: number
-) => {
+export async function withdraw(
+  program: Program<Idl>,
+  vaultPDA: PublicKey
+): Promise<{ success: boolean }> {
   try {
     const tx = await program.methods
-      .withdraw(amount)
+      .withdraw()
       .accounts({
         vault: vaultPDA,
-        user: wallet.publicKey,
-        vaultTokenAccount: await getAssociatedTokenAddress(
-          wallet.publicKey,
-          new PublicKey(process.env.NEXT_PUBLIC_SAVE_TOKEN_MINT!)
-        ),
-        saveTokenMint: new PublicKey(process.env.NEXT_PUBLIC_SAVE_TOKEN_MINT!),
+        user: program.provider.publicKey,
+        vaultTokenAccount: await getAssociatedTokenAddress(program.provider.publicKey, SAVESOL_MINT),
+        saveTokenMint: SAVESOL_MINT,
+        config: CONFIG_PDA,
+        admin: ADMIN_PUBKEY,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
       .rpc();
-
-    return { success: true, tx };
+    return { success: true };
   } catch (error) {
     console.error('Error withdrawing:', error);
-    return { success: false, error };
+    return { success: false };
   }
-};
+}
 
 // Emergency withdraw
 export const emergencyWithdraw = async (
@@ -302,10 +317,34 @@ export async function getVaultPDA(user: PublicKey): Promise<PublicKey> {
 }
 
 // Derive proxy account PDA
-export async function getProxyAccountPDA(user: PublicKey): Promise<PublicKey> {
+export async function getProxyPDA(user: PublicKey): Promise<PublicKey> {
     const [proxyAccount] = await PublicKey.findProgramAddressSync(
         [Buffer.from("proxy"), user.toBuffer()],
         new PublicKey(process.env.NEXT_PUBLIC_PROGRAM_ID!)
     );
     return proxyAccount;
+}
+
+// Update vault settings
+export async function updateVault(
+  program: Program<Idl>,
+  vaultPDA: PublicKey,
+  newSavingsRate: number,
+  newLockDays: number
+): Promise<{ success: boolean }> {
+  try {
+    const tx = await program.methods
+      .updateVault(newSavingsRate, newLockDays)
+      .accounts({
+        vault: vaultPDA,
+        user: program.provider.publicKey,
+        config: CONFIG_PDA,
+        admin: ADMIN_PUBKEY,
+      })
+      .rpc();
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating vault:', error);
+    return { success: false };
+  }
 } 

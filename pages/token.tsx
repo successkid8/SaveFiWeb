@@ -5,7 +5,6 @@ import Head from 'next/head';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { motion } from 'framer-motion';
-import { FaCoins, FaRocket, FaLock, FaChartLine } from 'react-icons/fa';
 
 export default function Token() {
   const router = useRouter();

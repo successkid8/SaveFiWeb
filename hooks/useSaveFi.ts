@@ -2,7 +2,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useAnchorProgram } from '../utils/anchor';
 import { useState, useCallback } from 'react';
 import { PublicKey } from '@solana/web3.js';
-import { createVault, updateSaveRate, getVaultData, withdrawFromVault } from '../utils/anchor';
+import { initializeVault, getVaultData, withdraw } from '../utils/anchor';
 
 export const useSaveFi = () => {
   const wallet = useWallet();
@@ -10,45 +10,21 @@ export const useSaveFi = () => {
   const [vaultPDA, setVaultPDA] = useState<PublicKey | null>(null);
   const [vaultData, setVaultData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Create a new vault
-  const createNewVault = useCallback(async (saveRate: number, dexAddresses: PublicKey[]) => {
-    if (!program || !wallet.connected) {
-      setError('Wallet not connected');
-      return { success: false, error: 'Wallet not connected' };
-    }
-
+  const createVault = useCallback(async (saveRate: number, lockDays: number) => {
+    if (!wallet.connected || !program) return;
+    setActionLoading(true);
     try {
-      const result = await createVault(program, wallet, saveRate, dexAddresses);
+      const result = await initializeVault(program, wallet.publicKey, saveRate, lockDays);
       if (result.success) {
-        setVaultPDA(result.vaultPDA);
-        await fetchVaultData();
+        // (initializeVault returns { success: boolean }, so no vaultPDA is returned)
       }
-      return result;
     } catch (err) {
-      setError(err.message);
-      return { success: false, error: err.message };
-    }
-  }, [program, wallet]);
-
-  // Update save rate
-  const updateVaultSaveRate = useCallback(async (newSaveRate: number) => {
-    if (!program || !wallet.connected || !vaultPDA) {
-      setError('Wallet not connected or vault not found');
-      return { success: false, error: 'Wallet not connected or vault not found' };
-    }
-
-    try {
-      const result = await updateSaveRate(program, wallet, vaultPDA, newSaveRate);
-      if (result.success) {
-        await fetchVaultData();
-      }
-      return result;
-    } catch (err) {
-      setError(err.message);
-      return { success: false, error: err.message };
-    }
-  }, [program, wallet, vaultPDA]);
+      console.error("Error creating vault:", err);
+    } finally { setActionLoading(false); }
+  }, [wallet, program]);
 
   // Fetch vault data
   const fetchVaultData = useCallback(async () => {
@@ -69,32 +45,27 @@ export const useSaveFi = () => {
   }, [program, vaultPDA]);
 
   // Withdraw from vault
-  const withdraw = useCallback(async (amount: number) => {
-    if (!program || !wallet.connected || !vaultPDA) {
-      setError('Wallet not connected or vault not found');
-      return { success: false, error: 'Wallet not connected or vault not found' };
-    }
-
+  const withdrawFromVault = useCallback(async (vaultPDA: PublicKey) => {
+    if (!wallet.connected || !program) return;
+    setActionLoading(true);
     try {
-      const result = await withdrawFromVault(program, wallet, vaultPDA, amount);
+      const result = await withdraw(program, vaultPDA);
       if (result.success) {
         await fetchVaultData();
       }
-      return result;
     } catch (err) {
-      setError(err.message);
-      return { success: false, error: err.message };
-    }
-  }, [program, wallet, vaultPDA, fetchVaultData]);
+      console.error("Error withdrawing from vault:", err);
+    } finally { setActionLoading(false); }
+  }, [wallet, program, fetchVaultData]);
 
   return {
     loading,
+    actionLoading,
     error,
     vaultData,
     vaultPDA,
-    createNewVault,
-    updateVaultSaveRate,
+    createVault,
     fetchVaultData,
-    withdraw,
+    withdrawFromVault,
   };
 }; 

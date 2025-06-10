@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { FC } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { FaWallet, FaChartLine, FaLock, FaUnlock } from 'react-icons/fa';
 
 interface DashboardProps {
   vaultData?: {
@@ -31,11 +30,14 @@ const Dashboard: React.FC<DashboardProps> = ({ vaultData }) => {
         <div className="bg-gray-800 rounded-xl p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm">Total Saved</p>
-              <h3 className="text-2xl font-bold mt-1">${mockData.totalSaved}</h3>
+              <h3 className="text-lg font-semibold text-gray-200">Wallet Balance</h3>
+              <p className="text-2xl font-bold text-white mt-1">0.00 SOL</p>
             </div>
             <div className="bg-green-500/10 p-3 rounded-lg">
-              <FaWallet className="text-green-500 text-xl" />
+              {/* Inline SVG wallet icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="text-green-500 text-xl w-6 h-6">
+                <path d="M21 7V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1M3 7h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zm14 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
+              </svg>
             </div>
           </div>
           <div className="mt-4">
@@ -51,7 +53,7 @@ const Dashboard: React.FC<DashboardProps> = ({ vaultData }) => {
               <h3 className="text-2xl font-bold mt-1">{mockData.nextUnlock}</h3>
             </div>
             <div className="bg-blue-500/10 p-3 rounded-lg">
-              <FaLock className="text-blue-500 text-xl" />
+              <span role="img" aria-label="lock" className="text-blue-500 text-xl">🔒</span>
             </div>
           </div>
           <div className="mt-4">
@@ -67,7 +69,7 @@ const Dashboard: React.FC<DashboardProps> = ({ vaultData }) => {
               <h3 className="text-2xl font-bold mt-1">{mockData.savingsStreak} days</h3>
             </div>
             <div className="bg-purple-500/10 p-3 rounded-lg">
-              <FaChartLine className="text-purple-500 text-xl" />
+              <span role="img" aria-label="chart" className="text-purple-500 text-xl">📈</span>
             </div>
           </div>
           <div className="mt-4">

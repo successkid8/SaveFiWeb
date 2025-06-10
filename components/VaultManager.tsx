@@ -3,9 +3,9 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { AnchorProvider, web3, BN } from '@project-serum/anchor';
 import { PublicKey, LAMPORTS_PER_SOL, SystemProgram } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
-import { IDL } from '../utils/idl';
+import SaveFiIdl from '../utils/idl';
 import { useToast } from './Toast';
-import { getProgram, getVaultPDA, getVaultTokenAccount, SAVE_TOKEN_MINT, SAVE_REWARD_MINT, getSaveSOLTokenAccountPDA } from '../utils/program';
+import { getProgram, getVaultPDA, getMintAuthorityPDA, PROGRAM_ID } from '../utils/program';
 import { 
     SAVESOL_MINT, 
     SAVESOL_DECIMALS, 
@@ -14,7 +14,6 @@ import {
     getAssociatedTokenAddress,
     isToken2022Mint
 } from '../utils/tokens';
-import { Toast } from './Toast';
 import { ClientOnly } from './ClientOnly';
 
 interface VaultAccount {
@@ -30,6 +29,8 @@ interface VaultInfo {
   saveRate: number;
   totalSaved: number;
   lastWithdrawTime: number;
+  lockUntil: number;
+  saveTokenBalance: number;
 }
 
 interface Transaction {
@@ -192,26 +193,20 @@ export const VaultManager = forwardRef((props, ref) => {
       setLoading(true);
       setError(null);
 
-      // Fetch vault info
-      const [vaultPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('vault'), publicKey.toBuffer()],
-        getProgram(new AnchorProvider(
-          new web3.Connection(web3.clusterApiUrl('devnet')),
-          { publicKey, signTransaction, signAllTransactions },
-          { commitment: 'confirmed' }
-        )).programId
+      const program = getProgram(
+        new web3.Connection(web3.clusterApiUrl('devnet')),
+        { publicKey, signTransaction, signAllTransactions }
       );
 
-      const vaultAccount = await getProgram(new AnchorProvider(
-        new web3.Connection(web3.clusterApiUrl('devnet')),
-        { publicKey, signTransaction, signAllTransactions },
-        { commitment: 'confirmed' }
-      )).account.vault.fetch(vaultPda);
+      const [vaultPda] = getVaultPDA(publicKey);
+      const vaultAccount = await program.account.vault.fetch(vaultPda) as any;
       setVaultInfo({
         owner: vaultAccount.owner,
-        saveRate: vaultAccount.saveRate,
-        totalSaved: Number(vaultAccount.totalSaved),
-        lastWithdrawTime: Number(vaultAccount.lastWithdrawTime),
+        saveRate: vaultAccount.save_rate,
+        totalSaved: Number(vaultAccount.total_saved?.toNumber?.() ?? vaultAccount.total_saved),
+        lastWithdrawTime: Number(vaultAccount.last_withdraw_time?.toNumber?.() ?? vaultAccount.last_withdraw_time),
+        lockUntil: Number(vaultAccount.lock_until?.toNumber?.() ?? vaultAccount.lock_until),
+        saveTokenBalance: Number(vaultAccount.save_token_balance?.toNumber?.() ?? vaultAccount.save_token_balance),
       });
 
       // Fetch SaveSOL balance
@@ -234,31 +229,16 @@ export const VaultManager = forwardRef((props, ref) => {
       setLoading(true);
       setError(null);
 
-      const [vaultPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('vault'), publicKey.toBuffer()],
-        getProgram(new AnchorProvider(
-          new web3.Connection(web3.clusterApiUrl('devnet')),
-          { publicKey, signTransaction, signAllTransactions },
-          { commitment: 'confirmed' }
-        )).programId
+      const program = getProgram(
+        new web3.Connection(web3.clusterApiUrl('devnet')),
+        { publicKey, signTransaction, signAllTransactions }
       );
 
-      const [mintAuthorityPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('mint_authority')],
-        getProgram(new AnchorProvider(
-          new web3.Connection(web3.clusterApiUrl('devnet')),
-          { publicKey, signTransaction, signAllTransactions },
-          { commitment: 'confirmed' }
-        )).programId
-      );
-
+      const [vaultPda] = getVaultPDA(publicKey);
+      const [mintAuthorityPda] = getMintAuthorityPDA();
       const tokenAccount = await getAssociatedTokenAddress(SAVESOL_MINT, publicKey);
 
-      await getProgram(new AnchorProvider(
-        new web3.Connection(web3.clusterApiUrl('devnet')),
-        { publicKey, signTransaction, signAllTransactions },
-        { commitment: 'confirmed' }
-      )).methods
+      await program.methods
         .initializeVault(saveRate, lockPeriod)
         .accounts({
           vault: vaultPda,
@@ -291,32 +271,17 @@ export const VaultManager = forwardRef((props, ref) => {
       setLoading(true);
       setError(null);
 
-      const [vaultPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('vault'), publicKey.toBuffer()],
-        getProgram(new AnchorProvider(
-          new web3.Connection(web3.clusterApiUrl('devnet')),
-          { publicKey, signTransaction, signAllTransactions },
-          { commitment: 'confirmed' }
-        )).programId
+      const program = getProgram(
+        new web3.Connection(web3.clusterApiUrl('devnet')),
+        { publicKey, signTransaction, signAllTransactions }
       );
 
-      const [mintAuthorityPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('mint_authority')],
-        getProgram(new AnchorProvider(
-          new web3.Connection(web3.clusterApiUrl('devnet')),
-          { publicKey, signTransaction, signAllTransactions },
-          { commitment: 'confirmed' }
-        )).programId
-      );
-
+      const [vaultPda] = getVaultPDA(publicKey);
+      const [mintAuthorityPda] = getMintAuthorityPDA();
       const tokenAccount = await getAssociatedTokenAddress(SAVESOL_MINT, publicKey);
 
-      await getProgram(new AnchorProvider(
-        new web3.Connection(web3.clusterApiUrl('devnet')),
-        { publicKey, signTransaction, signAllTransactions },
-        { commitment: 'confirmed' }
-      )).methods
-        .processTrade(new BN(convertToTokenAmount(amount)))
+      await program.methods
+        .processTrade(new BN(convertToTokenAmount(amount, SAVESOL_DECIMALS)))
         .accounts({
           vault: vaultPda,
           owner: publicKey,
@@ -347,31 +312,16 @@ export const VaultManager = forwardRef((props, ref) => {
       setLoading(true);
       setError(null);
 
-      const [vaultPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('vault'), publicKey.toBuffer()],
-        getProgram(new AnchorProvider(
-          new web3.Connection(web3.clusterApiUrl('devnet')),
-          { publicKey, signTransaction, signAllTransactions },
-          { commitment: 'confirmed' }
-        )).programId
+      const program = getProgram(
+        new web3.Connection(web3.clusterApiUrl('devnet')),
+        { publicKey, signTransaction, signAllTransactions }
       );
 
-      const [mintAuthorityPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('mint_authority')],
-        getProgram(new AnchorProvider(
-          new web3.Connection(web3.clusterApiUrl('devnet')),
-          { publicKey, signTransaction, signAllTransactions },
-          { commitment: 'confirmed' }
-        )).programId
-      );
-
+      const [vaultPda] = getVaultPDA(publicKey);
+      const [mintAuthorityPda] = getMintAuthorityPDA();
       const tokenAccount = await getAssociatedTokenAddress(SAVESOL_MINT, publicKey);
 
-      await getProgram(new AnchorProvider(
-        new web3.Connection(web3.clusterApiUrl('devnet')),
-        { publicKey, signTransaction, signAllTransactions },
-        { commitment: 'confirmed' }
-      )).methods
+      await program.methods
         .withdraw()
         .accounts({
           vault: vaultPda,
@@ -401,26 +351,21 @@ export const VaultManager = forwardRef((props, ref) => {
       if (!publicKey || !signTransaction || !signAllTransactions) return;
 
       try {
-        // Initialize Anchor provider
-        const provider = new AnchorProvider(
+        const program = getProgram(
           new web3.Connection(web3.clusterApiUrl('devnet')),
-          { publicKey, signTransaction, signAllTransactions },
-          { commitment: 'confirmed' }
+          { publicKey, signTransaction, signAllTransactions }
         );
 
-        // Initialize program
-        const program = getProgram(provider);
-
-        // Fetch vault info if exists
         try {
           const [vaultPDA] = getVaultPDA(publicKey);
-          const vault = await program.account.vault.fetch(vaultPDA);
-          const v = vault as any;
+          const vault = await program.account.vault.fetch(vaultPDA) as any;
           setVaultInfo({
-            owner: v.owner,
-            saveRate: v.save_rate,
-            totalSaved: Number(v.totalSaved),
-            lastWithdrawTime: Number(v.lastWithdrawTime),
+            owner: vault.owner,
+            saveRate: vault.save_rate,
+            totalSaved: Number(vault.total_saved?.toNumber?.() ?? vault.total_saved),
+            lastWithdrawTime: Number(vault.last_withdraw_time?.toNumber?.() ?? vault.last_withdraw_time),
+            lockUntil: Number(vault.lock_until?.toNumber?.() ?? vault.lock_until),
+            saveTokenBalance: Number(vault.save_token_balance?.toNumber?.() ?? vault.save_token_balance),
           });
           setInitError(null);
         } catch (err) {
@@ -471,33 +416,31 @@ export const VaultManager = forwardRef((props, ref) => {
 
             <div className="bg-white rounded-lg shadow p-4">
               <h3 className="text-lg font-semibold mb-2">SaveSOL Balance</h3>
-              <p>{formatTokenBalance(savesolBalance)} SaveSOL</p>
+              <p>{formatTokenBalance(savesolBalance, SAVESOL_DECIMALS)} SaveSOL</p>
             </div>
 
-            {!vaultInfo.isClosed && (
-              <div className="space-y-4">
+            <div className="space-y-4">
+              <button
+                onClick={() => processTrade(1)} // Example amount
+                className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+                disabled={loading}
+              >
+                Process Trade
+              </button>
+
+              {vaultInfo.lockUntil < Date.now() / 1000 && (
                 <button
-                  onClick={() => processTrade(1)} // Example amount
-                  className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+                  onClick={withdraw}
+                  className="w-full bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600"
                   disabled={loading}
                 >
-                  Process Trade
+                  Withdraw Savings
                 </button>
-
-                {vaultInfo.lockUntil < Date.now() / 1000 && (
-                  <button
-                    onClick={withdraw}
-                    className="w-full bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600"
-                    disabled={loading}
-                  >
-                    Withdraw Savings
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         ) : (
-          <div className="text-center p-4">
+          <div>
             <p className="text-gray-600">No vault found. Initialize one to start saving.</p>
             <button
               onClick={() => initializeVault(10, 7)} // Example save rate and lock period

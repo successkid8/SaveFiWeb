@@ -1,0 +1,9 @@
+
+[build]
+programs = { savefi = "savefi-keypair.json" }  # 👈 this line locks it
+
+
+
+solana program show 2Q4yUWhagMoXvij3YN7uutUUJ9kvXGs9TwX2fh6YEkZu
+
+solana program extend 2Q4yUWhagMoXvij3YN7uutUUJ9kvXGs9TwX2fh6YEkZu 102400 -k savefi-keypair.json

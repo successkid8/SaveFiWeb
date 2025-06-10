@@ -8,7 +8,6 @@ import { motion } from 'framer-motion';
 import { useAnchorProgram, getVaultData } from '../utils/anchor';
 import { getVaultPDA } from '../utils/program';
 import { PublicKey } from '@solana/web3.js';
-import { FaChartLine, FaWallet, FaHistory, FaExchangeAlt } from 'react-icons/fa';
 
 interface VaultData {
   saveRate: number;
@@ -16,6 +15,30 @@ interface VaultData {
   balance: number;
   lastSaveTime: number;
 }
+
+// Define icons object with inline SVGs
+const icons = {
+  chart: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18V3H3zm16 16H5V5h14v14zm-7-2a5 5 0 100-10 5 5 0 000 10z" />
+    </svg>
+  ),
+  wallet: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 7V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1M3 7h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zm14 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
+    </svg>
+  ),
+  history: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  exchange: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+    </svg>
+  )
+};
 
 const Dashboard = () => {
   const router = useRouter();
@@ -70,36 +93,36 @@ const Dashboard = () => {
   }, [program, publicKey, loading]);
 
   useEffect(() => {
-    const fetchVaultData = async () => {
+    const initializeProgram = async () => {
       if (!publicKey) return;
-
       try {
-        setLoading(true);
-        const program = getProgram(connection);
-        const [vaultPDA] = await PublicKey.findProgramAddress(
-          [Buffer.from('vault'), publicKey.toBuffer()],
-          program.programId
-        );
+        // Initialize program here
+        // const newProgram = await getProgram();
+        // setProgram(newProgram);
+      } catch (error) {
+        console.error('Error initializing program:', error);
+        setError('Failed to initialize program');
+      }
+    };
 
-        const { success, vault } = await program.account.vault.fetch(vaultPDA);
-        if (success && vault) {
-          setVaultData({
-            saveRate: vault.saveRate.toNumber(),
-            lockPeriod: vault.lockPeriod.toNumber(),
-            balance: vault.balance.toNumber(),
-            lastSaveTime: vault.lastSaveTime.toNumber(),
-          });
-        }
+    initializeProgram();
+  }, [publicKey]);
+
+  useEffect(() => {
+    const fetchVaultData = async () => {
+      if (!publicKey || !program) return;
+      try {
+        // Fetch vault data using program
+        // const data = await program.account.vault.fetch(vaultPDA);
+        // setVaultData(data);
       } catch (err) {
         console.error('Error fetching vault data:', err);
         setError('Failed to fetch vault data');
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchVaultData();
-  }, [publicKey, connection]);
+  }, [program, publicKey]);
 
   if (!mounted || loading) return null;
 
@@ -140,7 +163,7 @@ const Dashboard = () => {
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-primary/10 rounded-lg">
-                  <FaWallet className="w-6 h-6 text-primary" />
+                  {icons.wallet}
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-foreground/60">Total Saved</h3>
@@ -151,7 +174,7 @@ const Dashboard = () => {
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-secondary/10 rounded-lg">
-                  <FaChartLine className="w-6 h-6 text-secondary" />
+                  {icons.chart}
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-foreground/60">Save Rate</h3>
@@ -162,7 +185,7 @@ const Dashboard = () => {
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
               <div className="flex items-center space-x-4">
                 <div className="p-3 bg-primary/10 rounded-lg">
-                  <FaHistory className="w-6 h-6 text-primary" />
+                  {icons.history}
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-foreground/60">Last Save</h3>

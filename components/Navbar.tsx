@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { FaBars, FaTimes, FaHome, FaChartLine, FaLock, FaCog, FaCoins, FaWallet } from 'react-icons/fa';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
 const Navbar: React.FC = () => {
@@ -24,11 +23,11 @@ const Navbar: React.FC = () => {
   };
 
   const navLinks = [
-    { href: '/', label: 'Home', icon: FaHome },
-    { href: '/dashboard', label: 'Dashboard', icon: FaChartLine, requiresAuth: true },
-    { href: '/vault', label: 'Vault', icon: FaLock },
-    { href: '/set-plan', label: 'Set Plan', icon: FaCog },
-    { href: '/token', label: 'SaveFi Token', icon: FaCoins },
+    { href: '/', label: 'Home', svg: (<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7m-9 2v6m0 0h4m-4 0a2 2 0 01-2-2v-4a2 2 0 012-2h4a2 2 0 012 2v4a2 2 0 01-2 2z" /></svg>) },
+    { href: '/dashboard', label: 'Dashboard', svg: (<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18V3H3zm16 16H5V5h14v14zm-7-2a5 5 0 100-10 5 5 0 000 10z" /></svg>), requiresAuth: true },
+    { href: '/vault', label: 'Vault', svg: (<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>) },
+    { href: '/set-plan', label: 'Set Plan', svg: (<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>) },
+    { href: '/token', label: 'SaveFi Token', svg: (<svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>) },
   ];
 
   return (
@@ -52,7 +51,6 @@ const Navbar: React.FC = () => {
           <div className="hidden md:flex items-center space-x-2">
             {navLinks.map((link) => {
               if (link.requiresAuth && !connected) return null;
-              const Icon = link.icon;
               return (
                 <Link
                   key={link.href}
@@ -63,14 +61,14 @@ const Navbar: React.FC = () => {
                       : 'text-gray-300 hover:text-white hover:bg-gray-800/50 hover:shadow-lg hover:shadow-primary-500/5'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  {link.svg}
                   <span>{link.label}</span>
                 </Link>
               );
             })}
             <div className="ml-4">
               <WalletMultiButton className="!bg-gradient-to-r !from-primary-600 !to-secondary-500 hover:!from-primary-700 hover:!to-secondary-600 !rounded-lg !p-2 !text-sm !font-medium !shadow-lg !shadow-primary-500/20 transition-all duration-200">
-                <FaWallet className="w-5 h-5" />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M21 7V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1M3 7h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zm14 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" /></svg>
               </WalletMultiButton>
             </div>
           </div>
@@ -78,16 +76,16 @@ const Navbar: React.FC = () => {
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center space-x-2">
             <WalletMultiButton className="!bg-gradient-to-r !from-primary-600 !to-secondary-500 hover:!from-primary-700 hover:!to-secondary-600 !rounded-lg !p-2 !text-sm !font-medium !shadow-lg !shadow-primary-500/20 mr-2">
-              <FaWallet className="w-5 h-5" />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M21 7V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1M3 7h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zm14 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" /></svg>
             </WalletMultiButton>
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="text-gray-300 hover:text-white p-2 rounded-lg hover:bg-gray-800/50 transition-colors"
             >
               {isMobileMenuOpen ? (
-                <FaTimes className="h-6 w-6" />
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               ) : (
-                <FaBars className="h-6 w-6" />
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
               )}
             </button>
           </div>
@@ -100,7 +98,6 @@ const Navbar: React.FC = () => {
           <div className="px-2 pt-2 pb-3 space-y-1">
             {navLinks.map((link) => {
               if (link.requiresAuth && !connected) return null;
-              const Icon = link.icon;
               return (
                 <Link
                   key={link.href}
@@ -112,7 +109,7 @@ const Navbar: React.FC = () => {
                   }`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <Icon className="w-5 h-5" />
+                  {link.svg}
                   <span>{link.label}</span>
                 </Link>
               );

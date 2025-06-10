@@ -72,3 +72,20 @@ target/
 !programs/
 !tests/
 !scripts/
+
+# Solana
+.anchor/
+target/
+**/*.rs.bk
+test-ledger/
+
+# Build artifacts
+dist/
+build/
+*.so
+*.dylib
+*.dll
+
+# Keypairs and secrets
+*-keypair.json
+.env
